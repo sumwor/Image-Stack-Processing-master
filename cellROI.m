@@ -137,7 +137,7 @@ if ~isfield(handles,'var_proj'), tic;
 end
 
 %Project data onto Axes 1 (left) & 2 (right)
-for i=1:2 %Check radio buttons and get specified projection
+for i=1:2 %check radio buttons and get specified projection
     handles.img{i} = getProjection(i,handles); %img = getProjection(axisID,handles)
 end
 
@@ -364,8 +364,13 @@ if size(handles.cellMask,3) == 1
     handles.check_overwrite = true; %Set back to default: check before overwriting
     
 %Save data for current ROI
-    S = struct('cellf',handles.curr_cellf,'bw',handles.cellMask);
-    save(fullfile(handles.save_dir,save_name),'-struct','S');
+    if ~handles.checkbox_dendriteImg 
+        S = struct('cellf',handles.curr_cellf,'bw',handles.cellMask);
+        save(fullfile(handles.save_dir,save_name),'-struct','S');
+    else % for dendrite imaging
+        S = struch('cellf',handles.curr_cellf,'bw',handles.cellMask, 'isBranch',handles.radiobutton_isBranch, 'nBranch',handles.editbox_nBranch);
+        save(fullfile(handles.save_dir,save_name),'-struct','S');
+    end
 else  % for grid ROI selection. save empty subtractmask for loadxysavefluo
     for tt = 1:size(handles.cellMask,3)
         save_name = getSaveName(handles,tt);
@@ -686,11 +691,29 @@ end
 %In any case, refresh image axes to toggle display/hide ROIs
 refresh_Axis(1:2,handles); %refresh_Axis fcn tests value of checkbox
 
+function checkbox_isDendriteImg_Callback(hObject, eventdata, handles)
+% check whether it is dendrite imaging
+
+% --- Executes on button press in radiobutton_isBranch.
+function radiobutton_isBranch_Callback(hObject, eventdata, handles)
+
+
+% --- Executes on button press in radiobutton_isSpine.
+function radiobutton_isSpine_Callback(hObject, eventdata, handles)
+
+
 function checkbox_ImportROIs_Callback(hObject, eventdata, handles)
 function edit_saveNamePrefix_Callback(hObject, eventdata, handles)
 function edit_calcNeuropil_Ri_Callback(hObject, eventdata, handles)
 function edit_calcNeuropil_Ro_Callback(hObject, eventdata, handles)
 function checkbox_armRepeatSelect_Callback(hObject, eventdata, handles)
+
+function edit_branchNum_Callback(hObject, eventdata, handles)
+
+
+% --- Executes during object creation, after setting all properties.
+
+
 
 %--- CREATE FUNCTIONS ---------------------------------------------------
 function edit_cellID_CreateFcn(hObject, eventdata, handles)
@@ -721,6 +744,11 @@ function edit_nROIsToLoad_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+function edit_branchNum_CreateFcn(hObject, eventdata, handles)
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
 function slider_shiftX_CreateFcn(hObject, eventdata, handles)
 
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
@@ -843,9 +871,20 @@ for i = axis_ID %Set of int axes_IDs passed to function
             end
             if ~currIdx && ~isempty(handles.curr_ROI) %If newly drawn ROI
                 if size(handles.curr_ROI,3) == 1 % for ROI selection methods that select one ROI at a time
-                    patch(handles.(ax{i}),'XData',handles.curr_ROI(:,1),'YData',handles.curr_ROI(:,2),...
-                        'FaceColor','r','EdgeColor','none','FaceAlpha',0.4); %Display ROI on specified axes
+                    if ~handle.checkBox_dendriteImg
+                        patch(handles.(ax{i}),'XData',handles.curr_ROI(:,1),'YData',handles.curr_ROI(:,2),...
+                            'FaceColor','r','EdgeColor','none','FaceAlpha',0.4); %Display ROI on specified axes
+                    else % for dendrite imaging
+                        if handle.radiobutton_isSpine
+                            patch(handles.(ax{i}),'XData',handles.curr_ROI(:,1),'YData',handles.curr_ROI(:,2),...
+                            'FaceColor','g','EdgeColor','none','FaceAlpha',0.4);  % change the color
+                        elseif handle.radiobutton_isBranch
+                            patch(handles.(ax{i}),'XData',handles.curr_ROI(:,1),'YData',handles.curr_ROI(:,2),...
+                            'FaceColor','m','EdgeColor','none','FaceAlpha',0.4);
+                        end
+                    end
                 else % for ROI selection methods that select multiple ROIs at once
+              
                     % for grid ROI, plot the diagonal ROIs
                     wid = sqrt(size(handles.curr_ROI,3));
                     for tt = 1:wid
@@ -1222,6 +1261,4 @@ if isfield(handles,'ref_fig') && isfield(handles.ref_fig,'figure')
 end
 
 %--------------------------------------------------------------------------
-%--------------------------------------------------------------------------
-
-
+%----------------------------------------------------------------------
