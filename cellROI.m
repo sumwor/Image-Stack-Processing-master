@@ -327,26 +327,32 @@ function pushbutton_gridROI_Callback(hObject, eventdata, handles)
 % hObject    handle to grid_ROI (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+display('Getting ROIs');
 gridWidth = str2double(get(handles.edit_gridWidth,'String'));
 [nX,nY,~] = size(handles.stack);  % nX = nY
 nROIx = floor(nX/gridWidth); nROIy = floor(nY/gridWidth);
 handles.cellMask = zeros(nX,nY, nROIx*nROIy);
+
+% this process is fast, no need to add progress bar
+%h = waitbar(0,['Gettting ROIs... #', ' (0%)'],'Name','Progress');
 for tt = 1:nROIx
     for uu = 1:nROIy
+        %temp = (nROIx*(tt-1)+uu) /(nROIx*nROIy);
+        %msg = ['Getting ROIs... #' num2str(nROIx*(tt-1)+uu) '  (' num2str((nROIx*(tt-1)+uu) /(nROIx*nROIy)*100,2) '%)'];
+        %waitbar(temp,h,msg);
         handles.cellMask(gridWidth*(tt-1)+1:gridWidth*(tt),gridWidth*(uu-1)+1:gridWidth*(uu),tt + nROIy*(uu-1)) = 1;
     end
 end
 
 %Store cellF and patch vertices in memory
-% do not calculate the cellf for grid ROI, takes too long -> needed to be
-% calculated for later neuropil extraction
+% do not calculate the cellf for grid ROI, takes too long 
 [handles.curr_ROI, handles.curr_cellf] = roiData(handles);
 
 %guidata(hObject, handles); %Save user data
 guidata(hObject, handles); %Save user data
 refresh_Axis((1:2),handles); %Display patch and corresponding DFF
 %handles = guidata(hObject); %Expicitly set handles assigned by callback function for different uicontrol
-
+display('Getting ROIs....Done');
 
 
 
@@ -364,11 +370,11 @@ if size(handles.cellMask,3) == 1
     handles.check_overwrite = true; %Set back to default: check before overwriting
     
 %Save data for current ROI
-    if ~handles.checkbox_dendriteImg 
+    if ~handles.checkbox_dendriteImg.Value
         S = struct('cellf',handles.curr_cellf,'bw',handles.cellMask);
         save(fullfile(handles.save_dir,save_name),'-struct','S');
     else % for dendrite imaging
-        S = struch('cellf',handles.curr_cellf,'bw',handles.cellMask, 'isBranch',handles.radiobutton_isBranch, 'nBranch',handles.editbox_nBranch);
+        S = struct('cellf',handles.curr_cellf,'bw',handles.cellMask, 'isBranch',handles.radiobutton_isBranch.Value, 'nBranch',str2num(handles.edit_nBranch.String));
         save(fullfile(handles.save_dir,save_name),'-struct','S');
     end
 else  % for grid ROI selection. save empty subtractmask for loadxysavefluo
@@ -463,6 +469,9 @@ for i = 1:numel(handles.save_names)
         if handles.checkbox_loadNeuropilData.Value && isfield(S,'subtractmask')
             handles.neuropilf{i} = S.neuropilf;         %Get saved neuropil data
             handles.npPoly(i) = getNpPoly(S.subtractmask); %Generate polygon representation (graphics object)
+            if isfield(S, 'isBranch')
+                handles.isBranch{i} = S.isBranch;
+            end
         end
         handles.cellMasksAll(:,:,i) = S.bw; %3D array of logical masks: nY x nX x nROIs
         bounds = bwboundaries(S.bw); %Generate polygon representation of each cell mask
@@ -679,7 +688,7 @@ pushbutton_loadSavedROIs_Callback(handles.pushbutton_loadSavedROIs, eventdata, h
 uicontrol(handles.pushbutton_loadSavedROIs); %Focus on button (clear edit cursor)
 
 function edit_gridWidth_Callback(hObject, eventdata, handles)
-pushbutton_gridROI_Callback(handles.pushbutton_gridROI, eventdata, handles)
+pushbutton_gridROI_Callback(handles.grid_ROI, eventdata, handles)
 uicontrol(handles.pushbutton_gridROI); %Focus on button (clear edit cursor)
 
 
@@ -851,8 +860,18 @@ for i = axis_ID %Set of int axes_IDs passed to function
             %Refresh ROI patches
             for j = find(~cellfun(@isempty,handles.roi)) %Refresh saved ROIs
                 roi = handles.roi{j};
-                p = patch(handles.(ax{i}),'XData',roi(:,1),'YData',roi(:,2),...
-                    'FaceColor','y','EdgeColor','none','FaceAlpha',0.8); %Display ROI on specified axes
+                if ~isfield(handles, 'isBranch')
+                    p = patch(handles.(ax{i}),'XData',roi(:,1),'YData',roi(:,2),...
+                        'FaceColor','y','EdgeColor','none','FaceAlpha',0.8); %Display ROI on specified axes
+                else % if it is dendrite imaging
+                    if handles.isBranch == 1 
+                         patch(handles.(ax{i}),'XData',handles.curr_ROI(:,1),'YData',handles.curr_ROI(:,2),...
+                            'FaceColor','m','EdgeColor','none','FaceAlpha',0.4);
+                    else
+                        patch(handles.(ax{i}),'XData',handles.curr_ROI(:,1),'YData',handles.curr_ROI(:,2),...
+                            'FaceColor','m','EdgeColor','none','FaceAlpha',0.4);
+                    end
+                end
                 set(p,'ButtonDownFcn',{@selectROI,handles},...
                     'PickableParts','all','HitTest','on');
                 if isequal(handles.roi{j},handles.curr_ROI)
@@ -871,14 +890,14 @@ for i = axis_ID %Set of int axes_IDs passed to function
             end
             if ~currIdx && ~isempty(handles.curr_ROI) %If newly drawn ROI
                 if size(handles.curr_ROI,3) == 1 % for ROI selection methods that select one ROI at a time
-                    if ~handle.checkBox_dendriteImg
+                    if ~handles.checkbox_dendriteImg.Value
                         patch(handles.(ax{i}),'XData',handles.curr_ROI(:,1),'YData',handles.curr_ROI(:,2),...
                             'FaceColor','r','EdgeColor','none','FaceAlpha',0.4); %Display ROI on specified axes
                     else % for dendrite imaging
-                        if handle.radiobutton_isSpine
+                        if handles.radiobutton_isSpine.Value
                             patch(handles.(ax{i}),'XData',handles.curr_ROI(:,1),'YData',handles.curr_ROI(:,2),...
                             'FaceColor','g','EdgeColor','none','FaceAlpha',0.4);  % change the color
-                        elseif handle.radiobutton_isBranch
+                        elseif handles.radiobutton_isBranch.Value
                             patch(handles.(ax{i}),'XData',handles.curr_ROI(:,1),'YData',handles.curr_ROI(:,2),...
                             'FaceColor','m','EdgeColor','none','FaceAlpha',0.4);
                         end
@@ -946,9 +965,9 @@ else  % for ROI selection methods that select multiple ROIs (grid method)
         roi_single = [bounds{1}(:,2) bounds{1}(:,1)];
         roi(:,:,jj) = roi_single;
         
-        for i=1:size(handles.stack,3)
-            cellf(i,jj) = sum(sum(handles.stack(:,:,i).*double(handles.cellMask(:,:,jj)))); %Pre-20018b syntax for back-compatibility
-        end
+%         for i=1:size(handles.stack,3)
+%             cellf(i,jj) = sum(sum(handles.stack(:,:,i).*double(handles.cellMask(:,:,jj)))); %Pre-20018b syntax for back-compatibility
+%         end
     end
 end
 disp("Calculating cell fluorescence...Done");
