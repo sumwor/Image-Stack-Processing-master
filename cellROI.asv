@@ -706,7 +706,7 @@ uicontrol(handles.pushbutton_loadSavedROIs); %Focus on button (clear edit cursor
 
 function edit_gridWidth_Callback(hObject, eventdata, handles)
 pushbutton_gridROI_Callback(handles.grid_ROI, eventdata, handles)
-uicontrol(handles.grid_ROI); %Focus on button (clear edit cursor)
+uicontrol(handles.pushbutton_grid_ROI); %Focus on button (clear edit cursor)
 
 
 function checkbox_showROIs_Callback(hObject, eventdata, handles)
