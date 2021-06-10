@@ -7,7 +7,7 @@
 
 %% to do:
 %% if grid_ROI, check if mean intensity is above 55% (might be changed later)
-%% using mat files is available to accelarate the program
+%% using mat files if available to accelarate the program
 
 clearvars;
 tic;

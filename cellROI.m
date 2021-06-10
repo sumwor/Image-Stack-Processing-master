@@ -347,7 +347,11 @@ function pushbutton_gridROI_Callback(hObject, eventdata, handles)
 display('Getting ROIs');
 gridWidth = str2double(get(handles.edit_gridWidth,'String'));
 [nX,nY,~] = size(handles.stack);  % nX = nY
-nROIx = floor(nX/gridWidth); nROIy = floor(nY/gridWidth);
+
+% the edges should not be included due to motion correction artifact
+% get rid of edges (32 pixels for now)
+rmEdge = 32;
+nROIx = floor((nX-2*rmEdge)/gridWidth); nROIy = floor((nY-rmEdge)/gridWidth);
 handles.cellMask = zeros(nX,nY, nROIx*nROIy);
 
 % this process is fast, no need to add progress bar
@@ -357,7 +361,7 @@ for tt = 1:nROIx
         %temp = (nROIx*(tt-1)+uu) /(nROIx*nROIy);
         %msg = ['Getting ROIs... #' num2str(nROIx*(tt-1)+uu) '  (' num2str((nROIx*(tt-1)+uu) /(nROIx*nROIy)*100,2) '%)'];
         %waitbar(temp,h,msg);
-        handles.cellMask(gridWidth*(tt-1)+1:gridWidth*(tt),gridWidth*(uu-1)+1:gridWidth*(uu),(nROIx*(tt-1) + uu)) = 1;
+        handles.cellMask(gridWidth*(tt-1)+1+rmEdge:gridWidth*(tt)+rmEdge,gridWidth*(uu-1)+1+rmEdge:gridWidth*(uu)+rmEdge,(nROIx*(tt-1) + uu)) = 1;
     end
 end
 

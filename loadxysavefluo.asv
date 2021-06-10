@@ -7,7 +7,7 @@
 
 %% to do:
 %% if grid_ROI, check if mean intensity is above 55% (might be changed later)
-%% using mat files is available to accelarate the program
+%% using mat files if available to accelarate the program
 
 clearvars;
 tic;
@@ -59,7 +59,8 @@ clear bw subtractmask;
 %% do we want to shift the ROI masks in x,y (e.g. use same masks for longitudinal data)
 nudge=1;
 curr_x=0; curr_y=0; curr_contrast=1;
-meanprojpic=[];
+%meanprojpic=[];
+meanProjPath = dir('*mean*.tif');
 
 while (nudge==1)
     choice = questdlg('Would you like to nudge the x-y position of the ROIs?', ...
@@ -74,11 +75,11 @@ while (nudge==1)
     
     if nudge==1
         %if no image loaded, ask for mean projection image
-        if isempty(meanprojpic)
+        if isempty(meanProjPath)
             h=msgbox('Select the mean projection .tiff file');
             uiwait(h);
             [filename, pathname]=uigetfile([data_dir '*.tif'],'Select the mean projection .tiff file');
-            meanprojpic=loadtiffseq(pathname,filename);
+            meanProj=loadtiffseq(pathname,filename);
         end
         
         %ask user how much to nudge the ROIs
@@ -103,7 +104,7 @@ while (nudge==1)
         graymap=[linspace(0,1,255); linspace(0,1,255); linspace(0,1,255)]';
 
         %re-scale pixel values so they range from 0 to 255 
-        temppic=double(meanprojpic);    %convert to double so can multiple/divide with more precision
+        temppic=double(meanProjPath);    %convert to double so can multiple/divide with more precision
         temppic=255*temppic./nanmax(temppic(:));    %re-scale pixel values so range 0 to 255
         temppic=temppic*curr_contrast;  %if user desires enhanced contrast
         temppic(temppic>255)=255;       %if pixel values exceeds max possible, then set to max
@@ -149,48 +150,138 @@ for k=1:numel(roifiles)
 end
 
 %% load the mean projection, calculate the ROI intensity distribution
+meanProjPath = dir('*mean*.tif');
+meanProj = loadtiffseq([],meanProjPath.name);
 
+% get the mean intensity in ROI
+meanIntensity = zeros(1, size(cellmask,3));
+for uu = 1:size(cellmask,3)
+    meanIntensity(uu) = mean(meanProj(cellmask(:,:,uu)==1));
+end
+figure; histogram(meanIntensity);
 
-%% get the signal from the reg image files
-cd(data_dir);
-cd(reg_subdir);
-stacks=dir('*.tif');
+% remove the rois with mean intensity under 50% percentile
+roiRMmask = meanIntensity<=prctile(meanIntensity, 0);
 
-f=[]; n=[];
-for j=1:numel(stacks)
-    disp(['Loading reg image file ' stacks(j).name]);
-    cd(fullfile(data_dir,reg_subdir));
-    warning('off','all');   %scim_openTif generates warning    
-    pic=loadtiffseq([],stacks(j).name);
-    warning('on','all');   %scim_openTif generates warning
-    [nY nX nZ]=size(pic);
+% plot the ROI after removal
+figure;
 
-    for k=1:numel(roifiles)
-        tempf=[]; tempn=[];
-        for i=1:1:nZ
-            %get sum of pixel values within the ROI
-            tempf(i)=sum(sum(pic(:,:,i).*uint16(shifted_cellmask(:,:,k))));
-            tempn(i)=sum(sum(pic(:,:,i).*uint16(shifted_neuropilmask(:,:,k))));
-        end
-        if sum(sum(shifted_cellmask(:,:,k)))>0     %if there are pixels belonging the the ROI
-            if j==1 %if this is the first reg image, then start new variables
-                f{k}=tempf/sum(sum(shifted_cellmask(:,:,k)));   %per-pixel fluorescence
-                n{k}=tempn/sum(sum(shifted_neuropilmask(:,:,k)));   %per-pixel fluorescence
-            else
-                f{k}=[f{k} tempf/sum(sum(shifted_cellmask(:,:,k)))];   %per-pixel fluorescence
-                n{k}=[n{k} tempn/sum(sum(shifted_neuropilmask(:,:,k)))];   %per-pixel fluorescence
-            end
-        else %if the ROI is outside of the imaging field of view
-            f{k}=nan(size(tempf));
-            n{k}=nan(size(tempn));
-        end
+%color map for the image, use a smooth gray scale
+graymap=[linspace(0,1,255); linspace(0,1,255); linspace(0,1,255)]';
+
+%re-scale pixel values so they range from 0 to 255
+temppic=double(meanProj);    %convert to double so can multiple/divide with more precision
+temppic=255*temppic./nanmax(temppic(:));    %re-scale pixel values so range 0 to 255
+temppic=temppic*curr_contrast;  %if user desires enhanced contrast
+temppic(temppic>255)=255;       %if pixel values exceeds max possible, then set to max
+
+image(temppic);
+colormap(graymap);
+axis tight; axis square;
+hold on;
+for j=1:numel(roifiles)
+    
+    %shifts it by x and y, pad the rest with zero
+    
+    if (sum(sum(shifted_cellmask(:,:,j)))>0) && roiRMmask(j) == 0  % plot remaining ROIs
+        %draw ROI outline
+        [B,L]=bwboundaries(shifted_cellmask(:,:,j),'noholes');
+        plot(B{1}(:,2),B{1}(:,1),'r','LineWidth',1);
+    else
+        disp(['ROI ' int2str(j) ' is completely out of the imaging frame']);
     end
-    clear pic;
+end
+title(['Number of ROIs=' int2str(numel(roifiles)) '; x-shift=' int2str(curr_x) '; y-shift=' int2str(curr_y)]);
+set(0,'defaultfigureposition',[40 40 800 1000]);
+cd(data_dir);
+print(gcf,'-dpng','analyzed_rois.png');
+
+
+%% get the signal from the reg image files or mat files if available
+
+% remove roi with lower intensity later
+
+cd(data_dir);
+mat_subdir = 'mat';
+
+if isdir(mat_subdir)
+    cd(mat_subdir);
+    stacks = dir('*.mat');
+    f=[]; n=[];
+    for j=1:numel(stacks)
+        disp(['Loading reg image file ' stacks(j).name]);
+        cd(fullfile(data_dir,mat_subdir));
+        pic=load(stacks(j).name);
+        [nY nX nZ]=size(pic);
+        
+        for k=1:numel(roifiles)
+            tempf=[]; tempn=[];
+            for i=1:1:nZ
+                %get sum of pixel values within the ROI
+                tempf(i)=sum(sum(pic.stack(:,:,i).*uint16(shifted_cellmask(:,:,k))));
+                tempn(i)=sum(sum(pic.stack(:,:,i).*uint16(shifted_neuropilmask(:,:,k))));
+            end
+            if sum(sum(shifted_cellmask(:,:,k)))>0     %if there are pixels belonging the the ROI
+                if j==1 %if this is the first reg image, then start new variables
+                    f{k}=tempf/sum(sum(shifted_cellmask(:,:,k)));   %per-pixel fluorescence
+                    n{k}=tempn/sum(sum(shifted_neuropilmask(:,:,k)));   %per-pixel fluorescence
+                else
+                    f{k}=[f{k} tempf/sum(sum(shifted_cellmask(:,:,k)))];   %per-pixel fluorescence
+                    n{k}=[n{k} tempn/sum(sum(shifted_neuropilmask(:,:,k)))];   %per-pixel fluorescence
+                end
+            else %if the ROI is outside of the imaging field of view
+                f{k}=nan(size(tempf));
+                n{k}=nan(size(tempn));
+            end
+        end
+        clear pic;
+    end
+else
+    cd(reg_subdir);
+    stacks=dir('*.tif');
+    
+    f=[]; n=[];
+    for j=1:numel(stacks)
+        disp(['Loading reg image file ' stacks(j).name]);
+        cd(fullfile(data_dir,reg_subdir));
+        warning('off','all');   %scim_openTif generates warning
+        pic=loadtiffseq([],stacks(j).name);
+        warning('on','all');   %scim_openTif generates warning
+        [nY nX nZ]=size(pic);
+        
+        for k=1:numel(roifiles)
+            tempf=[]; tempn=[];
+            for i=1:1:nZ
+                %get sum of pixel values within the ROI
+                tempf(i)=sum(sum(pic(:,:,i).*uint16(shifted_cellmask(:,:,k))));
+                tempn(i)=sum(sum(pic(:,:,i).*uint16(shifted_neuropilmask(:,:,k))));
+            end
+            if sum(sum(shifted_cellmask(:,:,k)))>0     %if there are pixels belonging the the ROI
+                if j==1 %if this is the first reg image, then start new variables
+                    f{k}=tempf/sum(sum(shifted_cellmask(:,:,k)));   %per-pixel fluorescence
+                    n{k}=tempn/sum(sum(shifted_neuropilmask(:,:,k)));   %per-pixel fluorescence
+                else
+                    f{k}=[f{k} tempf/sum(sum(shifted_cellmask(:,:,k)))];   %per-pixel fluorescence
+                    n{k}=[n{k} tempn/sum(sum(shifted_neuropilmask(:,:,k)))];   %per-pixel fluorescence
+                end
+            else %if the ROI is outside of the imaging field of view
+                f{k}=nan(size(tempf));
+                n{k}=nan(size(tempn));
+            end
+        end
+        clear pic;
+    end
 end
 
 %% save the extracted signals
 cd(data_dir);
-cd(reg_subdir);
+
+
+if isdir(mat_subdir)
+    cd(mat_subdir);
+else
+    cd(reg_subdir);
+end
 [~,~,~]=mkdir('ROI');
 cd('ROI');
 for k=1:numel(roifiles)
