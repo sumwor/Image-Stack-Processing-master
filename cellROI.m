@@ -351,7 +351,7 @@ gridWidth = str2double(get(handles.edit_gridWidth,'String'));
 % the edges should not be included due to motion correction artifact
 % get rid of edges (32 pixels for now)
 rmEdge = 32;
-nROIx = floor((nX-2*rmEdge)/gridWidth); nROIy = floor((nY-rmEdge)/gridWidth);
+nROIx = floor((nX-2*rmEdge)/gridWidth); nROIy = floor((nY-2*rmEdge)/gridWidth);
 handles.cellMask = zeros(nX,nY, nROIx*nROIy);
 
 % this process is fast, no need to add progress bar
