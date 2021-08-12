@@ -104,14 +104,9 @@ for jj = 1:length(data_dirs)
 %         
         if nudge==1
             %if no image loaded, ask for mean projection image
-            if isempty(meanProjPath)
-                h=msgbox('Select the mean projection .tiff file');
-                uiwait(h);
-                [filename, pathname]=uigetfile([data_dir '*.tif'],'Select the mean projection .tiff file');
-                meanProj=loadtiffseq(pathname,filename);
-            else
+            if ~isempty(meanProjPath)
                 meanProj = loadtiffseq([],meanProjPath.name);
-            end
+            
             
             %ask user how much to nudge the ROIs
             default_x = int2str(curr_x);
@@ -171,6 +166,7 @@ for jj = 1:length(data_dirs)
     
     %save the ROI figure
     print(gcf,'-dpng','ROI-projection');
+        end
     %%
     shifted_cellmask=nan(size(cellmask));
     shifted_neuropilmask=nan(size(neuropilmask));
@@ -183,6 +179,7 @@ for jj = 1:length(data_dirs)
     end
     
     %% load the mean projection, calculate the ROI intensity distribution
+    if ~empty(meanProjPath)
     meanProjPath = dir('*mean*.tif');
     meanProj = loadtiffseq([],meanProjPath.name);
     
@@ -288,7 +285,7 @@ for jj = 1:length(data_dirs)
                 warning('on','all');   %scim_openTif generates warning
                 [nY nX nZ]=size(pic);
                 
-                for k=1:numel(roifiles)
+                parfor k=1:numel(roifiles)
                     tempf=[]; tempn=[];
                     for i=1:1:nZ
                         %get sum of pixel values within the ROI
