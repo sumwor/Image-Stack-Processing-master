@@ -21,8 +21,10 @@ function saveTiff(img_stack,img_info,save_path)
 
 %Get tags from imfinfo() structure or from stackInfo
 if ~isfield(img_info,'ImageLength') || ~isfield(img_info,'ImageWidth') 
-    img_info.ImageLength = img_info.Height; %imfinfo returns 'Height' and 'Width' instead of valid Tiff tags
-    img_info.ImageWidth  = img_info.Width;
+    for tt = 1:length(img_info)
+        img_info(tt).ImageLength = img_info(tt).Height; %imfinfo returns 'Height' and 'Width' instead of valid Tiff tags
+        img_info(tt).ImageWidth  = img_info(tt).Width;
+    end
 end
 field_names = fieldnames(img_info);
 field_names = field_names(ismember(field_names,Tiff.getTagNames)); %Trim off fields that are not valid tags

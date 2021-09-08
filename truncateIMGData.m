@@ -22,8 +22,8 @@ truncate_ROIs = input('Truncate ROIs? [input logical]');
 
 %Get data directory and load stackinfo.mat
 [FileName,PathName,~] = uigetfile('C:\Users\Michael\Documents\Data & Analysis\','Load Stack Info File');
-data_dir = fullfile(PathName,'../'); %(parent dir to stitched)
-
+%data_dir = fullfile(PathName,'../'); %(parent dir to stitched)
+data_dir =PathName;
 %Get ROI directory (if needed)
 if truncate_ROIs
     roi_path = uigetdir(fullfile(data_dir,reg_dir),'Select ROI Directory For Truncation');
